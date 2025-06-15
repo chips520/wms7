@@ -11,9 +11,36 @@ This application provides a service for managing material locations on trays, ty
 *   Data stored in an SQLite database (`instance/app.db`).
 *   Settings stored in `instance/settings.json`.
 
+## API Endpoint Overview
+
+The application exposes the following primary API endpoints under the `/api` prefix. See `wms_app/app/routes.py` for full details and request/response formats.
+
+### Trays
+*   `POST /trays`: Create a new tray.
+*   `GET /trays`: List all trays.
+*   `GET /trays/<id>`: Get details of a specific tray.
+*   `PUT /trays/<id>`: Update a tray's name.
+*   `DELETE /trays/<id>`: Delete a tray.
+
+### Locations
+*   `GET /trays/<tray_id>/locations`: List locations for a tray.
+*   `PUT /locations/<loc_id>/enable`: Enable a location.
+*   `PUT /locations/<loc_id>/disable`: Disable a location.
+*   `GET /trays/<tray_id>/empty_location`: Find an empty location on a tray.
+
+### Samples
+*   `POST /samples/place`: Place a sample.
+*   `GET /samples/<sample_id_str>`: Query a sample's location.
+*   `DELETE /locations/<loc_id>/clear`: Clear a sample from a location.
+*   `POST /trays/<tray_id>/clear_all`: Clear all samples from a tray.
+
+### Settings
+*   `GET /settings`: Get current application settings (port, auto-start).
+*   `PUT /settings`: Update application settings.
+
 ## Project Structure
 
-*   `run.py`: Main script to start the application.
+*   `run.py`: Main script to start the application (located in `wms_app/`).
 *   `wms_app/`: Main application package.
     *   `app/`: Contains the Flask app core.
         *   `__init__.py`: Application factory.
@@ -25,6 +52,7 @@ This application provides a service for managing material locations on trays, ty
     *   `instance/`:
         *   `app.db`: SQLite database file (created automatically).
         *   `settings.json`: Application settings (HTTP port, auto-start flag - created/updated via UI or API).
+*   `tests/`: Contains test files.
 *   `venv/`: Python virtual environment (if created as per setup).
 *   `require.md`: Original requirements document.
 
@@ -47,18 +75,31 @@ This application provides a service for managing material locations on trays, ty
 ## Running the Application Manually
 
 1.  **Ensure your virtual environment is activated.**
-2.  **Run the application:**
+2.  **Navigate to the project root directory.**
+3.  **Run the application:**
     ```bash
-    python run.py
+    python wms_app/run.py
     ```
-3.  The application will start an HTTP server. By default, it listens on `http://0.0.0.0:5000`.
-    The port can be configured via the UI (Service Management page) or by editing `instance/settings.json` (changes require an application restart).
-4.  Access the UI by navigating to `http://localhost:<port>/` in your web browser (e.g., `http://localhost:5000/`).
-5.  API endpoints are available under the `/api` prefix (e.g., `http://localhost:5000/api/trays`).
+4.  The application will start an HTTP server. By default, it listens on `http://0.0.0.0:5000`.
+    The port can be configured via the UI (Service Management page) or by editing `wms_app/instance/settings.json` (changes require an application restart).
+5.  Access the UI by navigating to `http://localhost:<port>/` in your web browser (e.g., `http://localhost:5000/`).
+6.  API endpoints are available under the `/api` prefix (e.g., `http://localhost:5000/api/trays`).
+
+## Running Tests
+
+The application includes a suite of unit and integration tests. To run the tests:
+
+1.  **Ensure your virtual environment is activated.**
+2.  **Navigate to the project root directory (the one containing `wms_app/` and `tests/`).**
+3.  **Run the test runner command:**
+    ```bash
+    python wms_app/run.py test
+    ```
+    This command executes the test suite defined in the `tests/` directory.
 
 ## Application Auto-Start on System Boot
 
-The `AUTO_START_HTTP` setting (configurable in the UI or `instance/settings.json`) is a flag that can be used by a system service manager. Setting it to `true` indicates the intention for the service to start automatically. The application itself doesn't implement system-level auto-start; you need to configure it using your operating system's tools.
+The `AUTO_START_HTTP` setting (configurable in the UI or `wms_app/instance/settings.json`) is a flag that can be used by a system service manager. Setting it to `true` indicates the intention for the service to start automatically. The application itself doesn't implement system-level auto-start; you need to configure it using your operating system's tools.
 
 ### Linux (using `systemd`)
 
@@ -72,9 +113,9 @@ The `AUTO_START_HTTP` setting (configurable in the UI or `instance/settings.json
     [Service]
     User=<your_user>  # Replace with the user you want to run the app as
     Group=<your_group> # Replace with the group for the user
-    WorkingDirectory=/path/to/your/wms_app # Replace with the actual absolute path to the wms_app directory (containing run.py)
-    Environment="PATH=/path/to/your/wms_app/venv/bin" # Absolute path to venv's bin
-    ExecStart=/path/to/your/wms_app/venv/bin/python run.py
+    WorkingDirectory=/path/to/your/project_root # Replace with the actual absolute path to the project root directory
+    Environment="PATH=/path/to/your/project_root/venv/bin" # Absolute path to venv's bin
+    ExecStart=/path/to/your/project_root/venv/bin/python wms_app/run.py
     Restart=always
     # StandardOutput=append:/var/log/wms-app/output.log # Optional: configure logging
     # StandardError=append:/var/log/wms-app/error.log  # Optional: configure logging
@@ -83,8 +124,8 @@ The `AUTO_START_HTTP` setting (configurable in the UI or `instance/settings.json
     WantedBy=multi-user.target
     ```
     *   **Important:**
-        *   Replace `<your_user>`, `<your_group>`, and `/path/to/your/wms_app` with appropriate values. The path must be absolute.
-        *   Ensure `run.py` and the Python interpreter in the `venv` are executable by this user.
+        *   Replace `<your_user>`, `<your_group>`, and `/path/to/your/project_root` with appropriate values. The path must be absolute.
+        *   Ensure `wms_app/run.py` and the Python interpreter in the `venv` are executable by this user.
         *   The `AUTO_START_HTTP` setting in `settings.json` doesn't directly control systemd. Systemd will start it regardless if the service is enabled. You could add a condition to `ExecStartPre` in the systemd unit to check this flag if you want systemd to respect it, for example, by having a small script that reads the JSON and exits with failure if auto-start is false.
 
 2.  **Reload systemd daemon:**
@@ -111,9 +152,9 @@ The `AUTO_START_HTTP` setting (configurable in the UI or `instance/settings.json
     *   **Name:** `WMS Application`
     *   **Trigger:** Select "When the computer starts".
     *   **Action:** Select "Start a program".
-    *   **Program/script:** Enter the full path to the `python.exe` in your virtual environment (e.g., `C:\path\to\your\wms_app\venv\Scripts\python.exe`).
-    *   **Add arguments (optional):** Enter `run.py`.
-    *   **Start in (optional):** Enter the full path to your `wms_app` directory (e.g., `C:\path\to\your\wms_app`). This is important so `run.py` can find other files.
+    *   **Program/script:** Enter the full path to the `python.exe` in your virtual environment (e.g., `C:\path\to\your\project_root\venv\Scripts\python.exe`).
+    *   **Add arguments (optional):** Enter `wms_app\run.py`.
+    *   **Start in (optional):** Enter the full path to your project root directory (e.g., `C:\path\to\your\project_root`). This is important so `run.py` can find other files.
 3.  **Finish the wizard.**
 4.  **Modify task for robustness (optional but recommended):**
     *   Open the properties of the created task.
@@ -123,7 +164,7 @@ The `AUTO_START_HTTP` setting (configurable in the UI or `instance/settings.json
 
 ## Logging
 
-Basic application events (like sample placement, clearing) should be logged. Currently, this is planned but not yet fully implemented in detail (placeholder TODOs in code). Production deployments should configure more robust logging (e.g., to files, especially when run as a background service).
+Basic application events (like sample placement, clearing) should be logged. Currently, this is planned but not yet fully implemented in detail (placeholder TODOs in code). Production deployments should configure more robust logging (e.g., to files, especially when run as a background service). The log file is `wms_app/instance/app.log`.
 
 ## Future Considerations / TODOs (from requirements)
 
