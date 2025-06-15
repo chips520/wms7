@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Locations for Tray ID: {{ tray_id }}</h2>
+<h3 id="trayNameDisplay"></h3>
+<div id="messageArea"></div>
+<p><a href="{{ url_for('main.ui_trays') }}" class="button">&laquo; Back to Trays</a></p>
+
+<button id="clearAllLocationsBtn" class="button delete">Clear All Locations on this Tray</button>
+
+<table id="locationsTable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Position</th>
+            <th>Status</th>
+            <th>Sample ID</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Location data populated by JS -->
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const locationsTableBody = document.querySelector('#locationsTable tbody');
+    const trayId = {{ tray_id }};
+    const trayNameDisplay = document.getElementById('trayNameDisplay');
+    const clearAllLocationsBtn = document.getElementById('clearAllLocationsBtn');
+
+    async function fetchLocations() {
+        const response = await apiCall(\`/api/trays/\${trayId}\`); // Fetch tray details to get name and locations
+        locationsTableBody.innerHTML = '';
+        if (response.ok) {
+            const tray = response.data;
+            trayNameDisplay.textContent = \`Tray Name: \${tray.name}\`;
+            if (tray.locations && tray.locations.length > 0) {
+                tray.locations.forEach(loc => {
+                    const row = locationsTableBody.insertRow();
+                    row.innerHTML = \`
+                        <td>\${loc.id}</td>
+                        <td>\${loc.position_identifier}</td>
+                        <td>\${loc.is_enabled ? 'Enabled' : 'Disabled'}</td>
+                        <td>\${loc.sample_id_str || 'Empty'}</td>
+                        <td>
+                            \${loc.is_enabled ?
+                                \`<button class="button disable" onclick="toggleLocationStatus(\${loc.id}, false, \${loc.sample_id_str != null})">Disable</button>\` :
+                                \`<button class="button enable" onclick="toggleLocationStatus(\${loc.id}, true, false)">Enable</button>\`}
+                            \${loc.sample_id_str ?
+                                \`<button class="button delete" onclick="clearSampleFromLocation(\${loc.id})">Clear Sample</button>\` : ''}
+                        </td>
+                    \`;
+                });
+            } else {
+                locationsTableBody.innerHTML = '<tr><td colspan="5">No locations found for this tray.</td></tr>';
+            }
+        } else {
+            displayMessage(response.data.error || 'Failed to fetch locations.', 'error');
+            trayNameDisplay.textContent = 'Could not load tray details.';
+        }
+    }
+
+    async function toggleLocationStatus(locationId, enable, isOccupied) {
+        const action = enable ? 'enable' : 'disable';
+        if (!enable && isOccupied) {
+            alert('Cannot disable an occupied location. Please clear the sample first.');
+            return;
+        }
+        if (!confirm(\`Are you sure you want to \${action} location ID \${locationId}?\`)) return;
+
+        const response = await apiCall(\`/api/locations/\${locationId}/\${action}\`, 'PUT');
+        if (response.ok) {
+            displayMessage(response.data.message || \`Location \${action}d successfully!\`);
+            fetchLocations(); // Refresh list
+        } else {
+            displayMessage(response.data.error || \`Failed to \${action} location.\`, 'error');
+        }
+    }
+
+    async function clearSampleFromLocation(locationId) {
+        if (!confirm(\`Are you sure you want to clear the sample from location ID \${locationId}?\`)) return;
+        const response = await apiCall(\`/api/locations/\${locationId}/clear\`, 'DELETE');
+        if (response.ok) {
+            displayMessage(response.data.message || 'Sample cleared successfully!');
+            fetchLocations(); // Refresh list
+        } else {
+            displayMessage(response.data.error || 'Failed to clear sample.', 'error');
+        }
+    }
+
+    clearAllLocationsBtn.addEventListener('click', async () => {
+        if (!confirm(\`Are you sure you want to clear ALL samples from this tray (ID: \${trayId})?\`)) return;
+        const response = await apiCall(\`/api/trays/\${trayId}/clear_all\`, 'POST');
+        if (response.ok) {
+            displayMessage(response.data.message || 'All locations cleared successfully!');
+            fetchLocations(); // Refresh list
+        } else {
+            displayMessage(response.data.error || 'Failed to clear all locations.', 'error');
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', fetchLocations);
+</script>
+{% endblock %}

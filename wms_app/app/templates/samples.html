@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Sample Management</h2>
+<div id="messageArea"></div>
+
+<h3>Place Sample</h3>
+<form id="placeSampleForm">
+    Sample ID: <input type="text" id="sampleIdStr" required><br>
+    Tray ID: <input type="number" id="placeTrayId" required><br>
+    Location ID (Optional): <input type="number" id="placeLocationId"><br>
+    <small>If Location ID is not provided, system will find an empty one.</small><br>
+    <button type="submit">Place Sample</button>
+    <button type="button" id="findEmptyBtn">Find & Assign Empty Location</button>
+</form>
+
+<h3>Query Sample Location</h3>
+<form id="querySampleForm">
+    Sample ID: <input type="text" id="querySampleIdStr" required>
+    <button type="submit">Query Sample</button>
+</form>
+<div id="queryResult"></div>
+
+<h3>Available Trays (for reference)</h3>
+<select id="availableTraysSelect" size="5" style="min-width: 200px;"></select>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const placeSampleForm = document.getElementById('placeSampleForm');
+    const querySampleForm = document.getElementById('querySampleForm');
+    const queryResult = document.getElementById('queryResult');
+    const availableTraysSelect = document.getElementById('availableTraysSelect');
+    const findEmptyBtn = document.getElementById('findEmptyBtn');
+
+    async function fetchAvailableTrays() {
+        const response = await apiCall('/api/trays');
+        availableTraysSelect.innerHTML = '';
+        if (response.ok) {
+            if (response.data.length === 0) {
+                availableTraysSelect.innerHTML = '<option value="">No trays created yet</option>';
+            }
+            response.data.forEach(tray => {
+                const option = document.createElement('option');
+                option.value = tray.id;
+                option.textContent = \`ID: \${tray.id} - Name: \${tray.name} (\${tray.location_count} spots)\`;
+                availableTraysSelect.appendChild(option);
+            });
+        } else {
+             availableTraysSelect.innerHTML = '<option value="">Error loading trays</option>';
+        }
+    }
+
+    placeSampleForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const sample_id_str = document.getElementById('sampleIdStr').value;
+        const tray_id = parseInt(document.getElementById('placeTrayId').value);
+        const location_id_input = document.getElementById('placeLocationId');
+        let payload = { sample_id_str, tray_id };
+        if (location_id_input.value) {
+            payload.location_id = parseInt(location_id_input.value);
+        }
+
+        const response = await apiCall('/api/samples/place', 'POST', payload);
+        if (response.ok) {
+            displayMessage(response.data.message || 'Sample placed successfully!');
+            placeSampleForm.reset();
+        } else {
+            displayMessage(response.data.error || 'Failed to place sample.', 'error');
+        }
+    });
+
+    findEmptyBtn.addEventListener('click', async () => {
+        const tray_id = parseInt(document.getElementById('placeTrayId').value);
+        if (!tray_id) {
+            displayMessage('Please enter a Tray ID first to find an empty location.', 'error');
+            return;
+        }
+        const response = await apiCall(\`/api/trays/\${tray_id}/empty_location\`);
+        if (response.ok) {
+            document.getElementById('placeLocationId').value = response.data.id;
+            displayMessage(\`Found empty Location ID: \${response.data.id} (Position: \${response.data.position_identifier}) on Tray ID \${tray_id}. Assigned to form.\`, 'success');
+        } else {
+            displayMessage(response.data.error || 'Could not find an empty location.', 'error');
+            document.getElementById('placeLocationId').value = ''; // Clear if error
+        }
+    });
+
+    querySampleForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const sample_id_str = document.getElementById('querySampleIdStr').value;
+        const response = await apiCall(\`/api/samples/\${sample_id_str}\`);
+        if (response.ok) {
+            const r = response.data;
+            queryResult.innerHTML = \`
+                <p><strong>Sample: \${r.sample_id_str}</strong></p>
+                <p>Tray ID: \${r.tray_id} (Name: \${r.tray_name})</p>
+                <p>Location ID: \${r.location_id} (Position: \${r.position_identifier})</p>
+                <p>Placed At: \${new Date(r.timestamp).toLocaleString()}</p>
+            \`;
+        } else {
+            queryResult.innerHTML = \`<p style="color:red;">\${response.data.error || 'Failed to query sample.'}</p>\`;
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchAvailableTrays();
+    });
+</script>
+{% endblock %}

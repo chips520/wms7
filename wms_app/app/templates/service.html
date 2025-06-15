@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>HTTP Service Management</h2>
+<div id="messageArea"></div>
+
+<p>This section is for managing the HTTP service settings. Changes here would typically require a restart of the application to take full effect for port changes, or may be handled by saving to a configuration file that the application reads on startup.</p>
+
+<form id="serviceConfigForm">
+    <div>
+        <label for="httpPort">HTTP Port:</label>
+        <input type="number" id="httpPort" name="httpPort" value="{{ config.HTTP_PORT }}" required>
+    </div>
+    <div>
+        <label for="autoStartHttp">Auto-start HTTP Service on App Launch:</label>
+        <input type="checkbox" id="autoStartHttp" name="autoStartHttp" {% if config.AUTO_START_HTTP %}checked{% endif %}>
+    </div>
+    <button type="submit">Save Settings</button>
+</form>
+<p><small>Note: Saving settings here is a placeholder for actual config file management. A real implementation would update a config file (e.g., config.py or a JSON/YAML file) and might require an app restart.</small></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const serviceConfigForm = document.getElementById('serviceConfigForm');
+const httpPortInput = document.getElementById('httpPort');
+const autoStartHttpInput = document.getElementById('autoStartHttp');
+
+async function loadServiceSettings() {
+    const response = await apiCall('/api/settings');
+    if (response.ok) {
+        httpPortInput.value = response.data.HTTP_PORT;
+        autoStartHttpInput.checked = response.data.AUTO_START_HTTP;
+    } else {
+        displayMessage(response.data.error || 'Failed to load service settings.', 'error');
+    }
+}
+
+serviceConfigForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const port = parseInt(httpPortInput.value);
+    const autoStart = autoStartHttpInput.checked;
+
+    const payload = {
+        HTTP_PORT: port,
+        AUTO_START_HTTP: autoStart
+    };
+
+    const response = await apiCall('/api/settings', 'PUT', payload);
+    if (response.ok) {
+        displayMessage(response.data.message || 'Settings saved successfully! Port changes require an application restart.', 'success');
+        // Optionally re-load settings to confirm, though API response should suffice
+        // loadServiceSettings();
+    } else {
+        displayMessage(response.data.error || 'Failed to save settings.', 'error');
+    }
+});
+
+document.addEventListener('DOMContentLoaded', loadServiceSettings);
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tray Management</h2>
+<div id="messageArea"></div>
+
+<h3>Create New Tray</h3>
+<form id="createTrayForm">
+    Name: <input type="text" id="trayName" required>
+    Location Count: <input type="number" id="locationCount" required min="1">
+    <button type="submit">Create Tray</button>
+</form>
+
+<h3>Existing Trays</h3>
+<table id="traysTable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Location Count</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Tray data will be populated here by JavaScript -->
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const createTrayForm = document.getElementById('createTrayForm');
+    const traysTableBody = document.querySelector('#traysTable tbody');
+
+    async function fetchTrays() {
+        const response = await apiCall('/api/trays');
+        traysTableBody.innerHTML = ''; // Clear existing
+        if (response.ok) {
+            response.data.forEach(tray => {
+                const row = traysTableBody.insertRow();
+                row.innerHTML = \`
+                    <td>\${tray.id}</td>
+                    <td>\${tray.name}</td>
+                    <td>\${tray.location_count}</td>
+                    <td>
+                        <a href="/ui/locations/\${tray.id}" class="button">View Locations</a>
+                        <button class="button delete" onclick="deleteTray(\${tray.id}, '\${tray.name}')">Delete</button>
+                    </td>
+                \`;
+            });
+        } else {
+            displayMessage(response.data.error || 'Failed to fetch trays.', 'error');
+        }
+    }
+
+    createTrayForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const name = document.getElementById('trayName').value;
+        const location_count = parseInt(document.getElementById('locationCount').value);
+        const response = await apiCall('/api/trays', 'POST', { name, location_count });
+        if (response.ok) {
+            displayMessage(response.data.message || 'Tray created successfully!');
+            fetchTrays(); // Refresh list
+            createTrayForm.reset();
+        } else {
+            displayMessage(response.data.error || 'Failed to create tray.', 'error');
+        }
+    });
+
+    async function deleteTray(trayId, trayName) {
+        if (!confirm(\`Are you sure you want to delete tray "\${trayName}" (ID: \${trayId})? This will also clear its locations.\`)) {
+            return;
+        }
+        const response = await apiCall(\`/api/trays/\${trayId}\`, 'DELETE');
+        if (response.ok) {
+            displayMessage(response.data.message || 'Tray deleted successfully!');
+            fetchTrays(); // Refresh list
+        } else {
+            displayMessage(response.data.error || 'Failed to delete tray.', 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchTrays);
+</script>
+{% endblock %}

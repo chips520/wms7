@@ -1,0 +1,4 @@
+{
+    "HTTP_PORT": 5001,
+    "AUTO_START_HTTP": false
+}
